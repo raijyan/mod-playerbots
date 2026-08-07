@@ -120,6 +120,14 @@ bool CheckMountStateAction::Execute(Event /*event*/)
     // If there is a master and bot not in BG, follow master's mount state regardless of group leader
     if (!noRealMaster && !inBattleground)
     {
+        // Mirroring the master's mount state is follow semantics. A bot whose
+        // follow strategy was deliberately removed (staged, parked, told to stay)
+        // is being positioned by something else and mounts on its own terms -
+        // mirroring here dismounts it the instant its own mount cast completes,
+        // via the speed-change packet re-running this action at top priority.
+        if (!botAI->HasStrategy("follow", BOT_STATE_NON_COMBAT))
+            return false;
+
         if (ShouldFollowMasterMountState(master, noAttackers, shouldMount))
             return Mount();
 
