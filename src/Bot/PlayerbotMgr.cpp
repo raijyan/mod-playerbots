@@ -893,6 +893,32 @@ bool PlayerbotMgr::HandlePlayerbotMgrCommand(ChatHandler* handler, char const* a
     return true;
 }
 
+// Maps an addclass/fillraid class-name argument to a class id (0 = invalid).
+static uint8 ClassIdFromName(std::string const& name)
+{
+    if (name == "warrior")
+        return CLASS_WARRIOR;
+    if (name == "paladin")
+        return CLASS_PALADIN;
+    if (name == "hunter")
+        return CLASS_HUNTER;
+    if (name == "rogue")
+        return CLASS_ROGUE;
+    if (name == "priest")
+        return CLASS_PRIEST;
+    if (name == "dk")
+        return CLASS_DEATH_KNIGHT;
+    if (name == "shaman")
+        return CLASS_SHAMAN;
+    if (name == "mage")
+        return CLASS_MAGE;
+    if (name == "warlock")
+        return CLASS_WARLOCK;
+    if (name == "druid")
+        return CLASS_DRUID;
+    return 0;
+}
+
 std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* args, Player* master)
 {
     std::vector<std::string> messages;
@@ -900,7 +926,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
     if (!*args)
     {
         messages.push_back("usage: list/reload/tweak/self or add/addaccount/init/remove PLAYERNAME\n");
-        messages.push_back("usage: addclass CLASSNAME [male|female|0|1]");
+        messages.push_back("usage: addclass CLASSNAME [male|female|0|1] or fillraid [CLASS1,CLASS2,...]");
         return messages;
     }
 
@@ -910,7 +936,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
 
     if (!cmd)
     {
-        messages.push_back("usage: list/reload/tweak/self or add/init/remove PLAYERNAME or addclass CLASSNAME [male|female]");
+        messages.push_back("usage: list/reload/tweak/self or add/init/remove PLAYERNAME or addclass CLASSNAME [male|female] or fillraid [CLASS1,CLASS2,...]");
         return messages;
     }
 
@@ -1088,48 +1114,8 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
                 "addclass: invalid CLASSNAME(warrior/paladin/hunter/rogue/priest/shaman/mage/warlock/druid/dk)");
             return messages;
         }
-        uint8 claz;
-        if (!strcmp(charname, "warrior"))
-        {
-            claz = 1;
-        }
-        else if (!strcmp(charname, "paladin"))
-        {
-            claz = 2;
-        }
-        else if (!strcmp(charname, "hunter"))
-        {
-            claz = 3;
-        }
-        else if (!strcmp(charname, "rogue"))
-        {
-            claz = 4;
-        }
-        else if (!strcmp(charname, "priest"))
-        {
-            claz = 5;
-        }
-        else if (!strcmp(charname, "shaman"))
-        {
-            claz = 7;
-        }
-        else if (!strcmp(charname, "mage"))
-        {
-            claz = 8;
-        }
-        else if (!strcmp(charname, "warlock"))
-        {
-            claz = 9;
-        }
-        else if (!strcmp(charname, "druid"))
-        {
-            claz = 11;
-        }
-        else if (!strcmp(charname, "dk"))
-        {
-            claz = 6;
-        }
-        else
+        uint8 claz = ClassIdFromName(charname);
+        if (!claz)
         {
             messages.push_back("Error: Invalid Class. Try again.");
             return messages;
@@ -1176,6 +1162,87 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
             return messages;
         }
         messages.push_back("Add class failed, no available characters!");
+        return messages;
+    }
+
+    if (!strcmp(cmd, "fillraid"))
+    {
+        if (!master)
+        {
+            messages.push_back("ERROR: fillraid needs an online master to fill a raid for.");
+            return messages;
+        }
+
+        if (sPlayerbotAIConfig.addClassCommand == 0 && !master->CanBeGameMaster())
+        {
+            messages.push_back("You do not have permission to create bots by fillraid command");
+            return messages;
+        }
+
+        // Default 25-man composition (master + 24): 3 tank-capable, 7 healer-capable,
+        // 14 dps. No deathknights so the comp also fits TBC raids.
+        static char const* const defaultComp =
+            "warrior,warrior,druid,paladin,paladin,priest,priest,priest,shaman,druid,"
+            "warlock,warlock,warlock,mage,mage,hunter,hunter,rogue,rogue,shaman,shaman,"
+            "priest,druid,warrior";
+
+        std::vector<std::string> comp = split(std::string(charname ? charname : defaultComp), ',');
+
+        uint32 members = master->GetGroup() ? master->GetGroup()->GetMembersCount() : 1;
+        if (members >= 25)
+        {
+            messages.push_back("fillraid: raid is already full");
+            return messages;
+        }
+        uint32 slots = 25 - members;
+
+        uint8 teamId = master->GetTeamId(true);
+        uint32 added = 0;
+        for (std::string const& className : comp)
+        {
+            if (added >= slots)
+            {
+                messages.push_back("fillraid: raid full, skipping remaining classes");
+                break;
+            }
+
+            uint8 claz = ClassIdFromName(className);
+            if (!claz)
+            {
+                messages.push_back("fillraid: invalid class '" + className + "'");
+                continue;
+            }
+
+            if (claz == CLASS_DEATH_KNIGHT &&
+                master->GetLevel() < sWorld->getIntConfig(CONFIG_START_HEROIC_PLAYER_LEVEL))
+            {
+                messages.push_back("fillraid: your level is too low to summon deathknight");
+                continue;
+            }
+
+            bool found = false;
+            std::unordered_set<ObjectGuid> const& guidCache =
+                sRandomPlayerbotMgr.addclassCache[RandomPlayerbotMgr::GetTeamClassIdx(teamId == TEAM_ALLIANCE, claz)];
+            for (ObjectGuid const& guid : guidCache)
+            {
+                if (botLoading.find(guid) != botLoading.end())
+                    continue;
+                if (ObjectAccessor::FindConnectedPlayer(guid))
+                    continue;
+                uint32 guildId = sCharacterCache->GetCharacterGuildIdByGuid(guid);
+                if (guildId && PlayerbotGuildMgr::instance().IsRealGuild(guildId))
+                    continue;
+                AddPlayerBot(guid, master->GetSession()->GetAccountId());
+                ++added;
+                found = true;
+                break;
+            }
+
+            if (!found)
+                messages.push_back("fillraid: no available " + className);
+        }
+
+        messages.push_back("fillraid: summoning " + std::to_string(added) + " bots");
         return messages;
     }
 
