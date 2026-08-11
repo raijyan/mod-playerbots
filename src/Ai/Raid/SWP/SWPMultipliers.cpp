@@ -327,6 +327,33 @@ float BrutallusNoKillingSpreeWhenNearbyBurnMultiplier::GetValue(Action* action)
     return 1.0f;
 }
 
+float KiljaedenHoldSinisterReflectionsMultiplier::GetValue(Action* action)
+{
+    // The acquire action sets the reflection as the target and returns, which lets the generic
+    // target selection run straight afterwards and switch the tank back onto whatever the dps
+    // are hitting. The tank then re-acquires next tick and flips again, standing still and
+    // holding nothing. Silence the generic target pickers on assist tanks while a reflection is
+    // up; the encounter action is the only thing that should be choosing their target.
+    if (!dynamic_cast<DpsAssistAction*>(action) && !dynamic_cast<DpsAoeAction*>(action) &&
+        !dynamic_cast<TankAssistAction*>(action) && !dynamic_cast<AttackAnythingAction*>(action) &&
+        !dynamic_cast<AggressiveTargetAction*>(action))
+    {
+        return 1.0f;
+    }
+
+    if (!PlayerbotAI::IsTank(bot) || PlayerbotAI::IsMainTank(bot))
+        return 1.0f;
+
+    if (!bot->FindNearestCreature(
+            Id(SwpNpcs::NPC_SINISTER_REFLECTION),
+            KILJAEDEN_SINISTER_REFLECTION_SEARCH_RADIUS, true))
+    {
+        return 1.0f;
+    }
+
+    return 0.0f;
+}
+
 float BrutallusRestrictTauntMultiplier::GetValue(Action* action)
 {
     if (!IsTauntAction(action))

@@ -473,6 +473,14 @@ public:
     bool IsActive() override;
 };
 
+class KiljaedenSinisterReflectionsAreActiveTrigger : public Trigger
+{
+public:
+    KiljaedenSinisterReflectionsAreActiveTrigger(PlayerbotAI* botAI)
+        : Trigger(botAI, "kil'jaeden sinister reflections are active") {}
+    bool IsActive() override;
+};
+
 class KiljaedenBossEngagedByTanksTrigger : public Trigger
 {
 public:

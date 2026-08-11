@@ -74,6 +74,15 @@ inline Position const KILJAEDEN_S_MELEE_POSITION =  { 1689.487f, 632.119f, 27.82
 inline Position const KILJAEDEN_E_MELEE_POSITION =  { 1700.542f, 619.589f, 27.786f };
 inline Position const KILJAEDEN_DARKNESS_POSITION = { 1709.768f, 642.241f, 27.706f };
 
+// Sinister Reflections are summoned already selectable, but the core does not put them in combat
+// until 5 seconds later (boss_kiljaeden.cpp, JustSummoned). Until that fires they are on nobody's
+// threat list, so they never reach AttackersValue and the standard target selection cannot see
+// them. Acquire them by entry from the grid instead, which is true from the tick they spawn.
+inline constexpr float KILJAEDEN_SINISTER_REFLECTION_SEARCH_RADIUS = 100.0f;
+
+// Upper bound on tanks the hand assignment tracks; the raid may bring fewer.
+inline constexpr uint8 MAX_KILJAEDEN_HAND_TANKS = 3;
+
 extern std::unordered_set<ObjectGuid> kiljaedenTrackedArmageddonTargets;
 extern std::unordered_map<uint32, KiljaedenEncounterState> kiljaedenEncounterStates;
 extern std::unordered_map<uint32, std::array<ObjectGuid, 3>> kiljaedenHandTankAssignments;

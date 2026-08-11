@@ -85,6 +85,14 @@ public:
     float GetValue(Action* action) override;
 };
 
+class KiljaedenHoldSinisterReflectionsMultiplier : public Multiplier
+{
+public:
+    KiljaedenHoldSinisterReflectionsMultiplier(PlayerbotAI* botAI)
+        : Multiplier(botAI, "kil'jaeden hold sinister reflections") {}
+    float GetValue(Action* action) override;
+};
+
 class BrutallusRestrictTauntMultiplier : public Multiplier
 {
 public:

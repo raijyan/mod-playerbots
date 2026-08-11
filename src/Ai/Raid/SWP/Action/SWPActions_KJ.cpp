@@ -10,6 +10,8 @@
 #include "PlayerbotTextMgr.h"
 #include "RaidBossHelpers.h"
 #include "SWPData.h"
+#include <algorithm>
+#include <list>
 #include <map>
 #include <string>
 #include <vector>
@@ -53,16 +55,26 @@ bool KiljaedenAnnounceDragonOrbUserAction::Execute(Event /*event*/)
 
 bool KiljaedenMarkAndPrioritizeHandsOfTheDeceiverAction::Execute(Event /*event*/)
 {
-    // Don't run this method at all without at least 3 bot tanks
-    Player* mainTank = GetGroupMainTank(botAI, bot);
-    Player* firstAssistTank = GetGroupAssistTank(botAI, bot, 0);
-    Player* secondAssistTank = GetGroupAssistTank(botAI, bot, 1);
-    if (!mainTank || !GET_PLAYERBOT_AI(mainTank) ||
-        !firstAssistTank || !GET_PLAYERBOT_AI(firstAssistTank) ||
-        !secondAssistTank || !GET_PLAYERBOT_AI(secondAssistTank))
+    // Take whatever tanks the raid actually brought. Two is the normal Kil'jaeden setup, and
+    // demanding three meant that on a two-tank raid this returned false on every tick: no hand
+    // was ever assigned, and the skull marking below — which is what puts a hand into the
+    // attackers list before it aggros — never ran either. Fewer tanks than hands just leaves the
+    // surplus to the tanks' AoE threat, which still beats nobody holding anything.
+    std::vector<Player*> tanks;
+    if (Player* mainTank = GetGroupMainTank(botAI, bot); mainTank && GET_PLAYERBOT_AI(mainTank))
+        tanks.push_back(mainTank);
+
+    for (uint8 i = 0; i < MAX_KILJAEDEN_HAND_TANKS - 1; ++i)
     {
-        return false;
+        Player* assistTank = GetGroupAssistTank(botAI, bot, i);
+        if (!assistTank || !GET_PLAYERBOT_AI(assistTank))
+            break;
+
+        tanks.push_back(assistTank);
     }
+
+    if (tanks.empty())
+        return false;
 
     std::vector<Unit*> hands;
     auto const& targets = AI_VALUE(GuidVector, "possible targets no los");
@@ -91,7 +103,7 @@ bool KiljaedenMarkAndPrioritizeHandsOfTheDeceiverAction::Execute(Event /*event*/
     }
 
     if (PlayerbotAI::IsTank(bot))
-        return ExecuteTankHandAssignment(hands, mainTank, firstAssistTank, secondAssistTank);
+        return ExecuteTankHandAssignment(hands, tanks);
 
     Unit* focusHand = hands[0];
     for (Unit* hand : hands)
@@ -107,11 +119,8 @@ bool KiljaedenMarkAndPrioritizeHandsOfTheDeceiverAction::Execute(Event /*event*/
 }
 
 bool KiljaedenMarkAndPrioritizeHandsOfTheDeceiverAction::ExecuteTankHandAssignment(
-    std::vector<Unit*> const& hands,
-    Player* mainTank, Player* firstAssistTank, Player* secondAssistTank)
+    std::vector<Unit*> const& hands, std::vector<Player*> const& tanks)
 {
-    std::vector<Player*> const tanks = { mainTank, firstAssistTank, secondAssistTank };
-
     size_t myIndex = tanks.size();
     for (size_t i = 0; i < tanks.size(); ++i)
     {
@@ -185,6 +194,72 @@ bool KiljaedenMarkAndPrioritizeHandsOfTheDeceiverAction::ExecuteTankHandAssignme
         if (distFromTank < minTankDistance)
             return MoveAway(otherTank, minTankDistance - distFromTank, true);
     }
+
+    return false;
+}
+
+bool KiljaedenAcquireSinisterReflectionsAction::Execute(Event event)
+{
+    // The main tank keeps Kil'jaeden; the assist tanks peel the reflections. This mirrors
+    // KiljaedenBossEngagedByTanksTrigger, which already drops every non-main tank off the boss
+    // while a reflection is up.
+    if (!PlayerbotAI::IsTank(bot) || PlayerbotAI::IsMainTank(bot))
+        return false;
+
+    std::list<Creature*> creatures;
+    bot->GetCreatureListWithEntryInGrid(
+        creatures, Id(SwpNpcs::NPC_SINISTER_REFLECTION),
+        KILJAEDEN_SINISTER_REFLECTION_SEARCH_RADIUS);
+
+    std::vector<Unit*> reflections;
+    for (Creature* creature : creatures)
+    {
+        if (creature && creature->IsAlive())
+            reflections.push_back(creature);
+    }
+
+    if (reflections.empty())
+        return false;
+
+    // An off-tank grabs the whole set during the ~5 seconds before they activate rather than
+    // taking one each, so work the entire list. A reflection already held by a tank is skipped,
+    // which is what keeps two tanks off the same one without any shared assignment state.
+    Unit* untanked = nullptr;
+    Unit* nearest = nullptr;
+    float nearestDist = std::numeric_limits<float>::max();
+
+    for (Unit* reflection : reflections)
+    {
+        float const dist = bot->GetExactDist2d(reflection);
+        if (dist < nearestDist)
+        {
+            nearestDist = dist;
+            nearest = reflection;
+        }
+
+        if (untanked)
+            continue;
+
+        Unit* victim = reflection->GetVictim();
+        if (victim == bot)
+            continue;
+
+        if (!victim || !victim->IsPlayer() || !PlayerbotAI::IsTank(victim->ToPlayer()))
+            untanked = reflection;
+    }
+
+    // Taunt acts on the current target, so the one that needs pulling off the raid has to be
+    // targeted first. Attacking alone only trickles threat while the reflection walks away to
+    // whoever it mirrors, which leaves the tank chasing it instead of holding it.
+    Unit* const target = untanked ? untanked : nearest;
+    if (!target)
+        return false;
+
+    if (AI_VALUE(Unit*, "current target") != target)
+        return Attack(target);
+
+    if (untanked)
+        return botAI->DoSpecificAction("taunt spell", event, true);
 
     return false;
 }

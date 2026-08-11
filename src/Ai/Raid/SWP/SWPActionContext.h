@@ -194,6 +194,9 @@ public:
         creators["kil'jaeden stun hands of the deceiver"] =
             &RaidSunwellActionContext::kiljaeden_stun_hands_of_the_deceiver;
 
+        creators["kil'jaeden acquire sinister reflections"] =
+            &RaidSunwellActionContext::kiljaeden_acquire_sinister_reflections;
+
         creators["kil'jaeden position tanks"] =
             &RaidSunwellActionContext::kiljaeden_position_tanks;
 
@@ -405,6 +408,9 @@ private:
     }
     static Action* kiljaeden_stun_hands_of_the_deceiver(PlayerbotAI* botAI) {
         return new KiljaedenStunHandsOfTheDeceiverAction(botAI);
+    }
+    static Action* kiljaeden_acquire_sinister_reflections(PlayerbotAI* botAI) {
+        return new KiljaedenAcquireSinisterReflectionsAction(botAI);
     }
     static Action* kiljaeden_position_tanks(PlayerbotAI* botAI) {
         return new KiljaedenPositionTanksAction(botAI);

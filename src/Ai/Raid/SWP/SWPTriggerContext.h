@@ -191,6 +191,9 @@ public:
         creators["kil'jaeden hands of the deceiver are active"] =
             &RaidSunwellTriggerContext::kiljaeden_hands_of_the_deceiver_are_active;
 
+        creators["kil'jaeden sinister reflections are active"] =
+            &RaidSunwellTriggerContext::kiljaeden_sinister_reflections_are_active;
+
         creators["kil'jaeden boss engaged by tanks"] =
             &RaidSunwellTriggerContext::kiljaeden_boss_engaged_by_tanks;
 
@@ -399,6 +402,9 @@ private:
     }
     static Trigger* kiljaeden_hands_of_the_deceiver_are_active(PlayerbotAI* botAI) {
         return new KiljaedenHandsOfTheDeceiverAreActiveTrigger(botAI);
+    }
+    static Trigger* kiljaeden_sinister_reflections_are_active(PlayerbotAI* botAI) {
+        return new KiljaedenSinisterReflectionsAreActiveTrigger(botAI);
     }
     static Trigger* kiljaeden_boss_engaged_by_tanks(PlayerbotAI* botAI) {
         return new KiljaedenBossEngagedByTanksTrigger(botAI);

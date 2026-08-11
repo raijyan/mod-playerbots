@@ -559,8 +559,15 @@ public:
 
 private:
     bool ExecuteTankHandAssignment(
-        std::vector<Unit*> const& hands,
-        Player* mainTank, Player* firstAssistTank, Player* secondAssistTank);
+        std::vector<Unit*> const& hands, std::vector<Player*> const& tanks);
+};
+
+class KiljaedenAcquireSinisterReflectionsAction : public AttackAction
+{
+public:
+    KiljaedenAcquireSinisterReflectionsAction(PlayerbotAI* botAI)
+        : AttackAction(botAI, "kil'jaeden acquire sinister reflections") {}
+    bool Execute(Event event) override;
 };
 
 class KiljaedenStunHandsOfTheDeceiverAction : public Action

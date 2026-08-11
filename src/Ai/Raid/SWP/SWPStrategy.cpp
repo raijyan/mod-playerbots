@@ -193,6 +193,9 @@ void RaidSunwellStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
         NextAction("kil'jaeden stun hands of the deceiver", ACTION_EMERGENCY),
         NextAction("kil'jaeden mark and prioritize hands of the deceiver", ACTION_RAID) }));
 
+    triggers.push_back(new TriggerNode("kil'jaeden sinister reflections are active", {
+        NextAction("kil'jaeden acquire sinister reflections", ACTION_EMERGENCY) }));
+
     triggers.push_back(new TriggerNode("kil'jaeden boss engaged by tanks", {
         NextAction("kil'jaeden position tanks", ACTION_RAID) }));
 
@@ -227,6 +230,9 @@ void RaidSunwellStrategy::InitMultipliers(std::vector<Multiplier*>& multipliers)
     multipliers.push_back(new KalecgosRestrictTauntMultiplier(botAI));
     multipliers.push_back(new KalecgosSuppressAssistTankPullThreatMultiplier(botAI));
     multipliers.push_back(new KalecgosDelayCooldownsForSathrovarrMultiplier(botAI));
+
+    // Kil'jaeden
+    multipliers.push_back(new KiljaedenHoldSinisterReflectionsMultiplier(botAI));
 
     // Brutallus
     multipliers.push_back(new BrutallusControlMisdirectionMultiplier(botAI));

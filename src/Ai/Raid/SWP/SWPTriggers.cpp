@@ -735,6 +735,18 @@ bool KiljaedenHandsOfTheDeceiverAreActiveTrigger::IsActive()
     return AI_VALUE2(Unit*, "find target", "hand of the deceiver");
 }
 
+bool KiljaedenSinisterReflectionsAreActiveTrigger::IsActive()
+{
+    if (!PlayerbotAI::IsTank(bot) || PlayerbotAI::IsMainTank(bot))
+        return false;
+
+    // Deliberately an entry search rather than "find target": a reflection is not in combat for
+    // its first 5 seconds, so it is absent from attackers and from anything derived from it.
+    return bot->FindNearestCreature(
+               Id(SwpNpcs::NPC_SINISTER_REFLECTION),
+               KILJAEDEN_SINISTER_REFLECTION_SEARCH_RADIUS, true) != nullptr;
+}
+
 bool KiljaedenBossEngagedByTanksTrigger::IsActive()
 {
     if (!PlayerbotAI::IsTank(bot))
