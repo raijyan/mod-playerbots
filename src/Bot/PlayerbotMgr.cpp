@@ -919,6 +919,97 @@ static uint8 ClassIdFromName(std::string const& name)
     return 0;
 }
 
+// Maps a spec-name argument to a talent tab for the class (-1 = invalid; 3 = druid cat).
+static int SpecTabFromName(uint8 claz, std::string const& spec)
+{
+    switch (claz)
+    {
+        case CLASS_WARRIOR:
+            if (spec == "arms")
+                return 0;
+            if (spec == "fury")
+                return 1;
+            if (spec == "prot" || spec == "protection")
+                return 2;
+            break;
+        case CLASS_PALADIN:
+            if (spec == "holy")
+                return 0;
+            if (spec == "prot" || spec == "protection")
+                return 1;
+            if (spec == "ret" || spec == "retribution")
+                return 2;
+            break;
+        case CLASS_HUNTER:
+            if (spec == "bm" || spec == "beastmastery")
+                return 0;
+            if (spec == "mm" || spec == "marksmanship")
+                return 1;
+            if (spec == "sv" || spec == "survival")
+                return 2;
+            break;
+        case CLASS_ROGUE:
+            if (spec == "assassination" || spec == "assa")
+                return 0;
+            if (spec == "combat")
+                return 1;
+            if (spec == "sub" || spec == "subtlety")
+                return 2;
+            break;
+        case CLASS_PRIEST:
+            if (spec == "disc" || spec == "discipline")
+                return 0;
+            if (spec == "holy")
+                return 1;
+            if (spec == "shadow")
+                return 2;
+            break;
+        case CLASS_DEATH_KNIGHT:
+            if (spec == "blood")
+                return 0;
+            if (spec == "frost")
+                return 1;
+            if (spec == "unholy")
+                return 2;
+            break;
+        case CLASS_SHAMAN:
+            if (spec == "ele" || spec == "elemental")
+                return 0;
+            if (spec == "enh" || spec == "enhancement")
+                return 1;
+            if (spec == "resto" || spec == "restoration")
+                return 2;
+            break;
+        case CLASS_MAGE:
+            if (spec == "arcane")
+                return 0;
+            if (spec == "fire")
+                return 1;
+            if (spec == "frost")
+                return 2;
+            break;
+        case CLASS_WARLOCK:
+            if (spec == "affliction" || spec == "affli")
+                return 0;
+            if (spec == "demo" || spec == "demonology")
+                return 1;
+            if (spec == "destro" || spec == "destruction")
+                return 2;
+            break;
+        case CLASS_DRUID:
+            if (spec == "balance" || spec == "boomkin")
+                return 0;
+            if (spec == "feral" || spec == "bear")
+                return 1;
+            if (spec == "resto" || spec == "restoration")
+                return 2;
+            if (spec == "cat")
+                return 3;
+            break;
+    }
+    return -1;
+}
+
 std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* args, Player* master)
 {
     std::vector<std::string> messages;
@@ -926,7 +1017,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
     if (!*args)
     {
         messages.push_back("usage: list/reload/tweak/self or add/addaccount/init/remove PLAYERNAME\n");
-        messages.push_back("usage: addclass CLASSNAME [male|female|0|1] or fillraid [CLASS1,CLASS2,...]");
+        messages.push_back("usage: addclass CLASS[:SPEC] [male|female|0|1] or fillraid [CLASS1[:SPEC],CLASS2[:SPEC],...]");
         return messages;
     }
 
@@ -936,7 +1027,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
 
     if (!cmd)
     {
-        messages.push_back("usage: list/reload/tweak/self or add/init/remove PLAYERNAME or addclass CLASSNAME [male|female] or fillraid [CLASS1,CLASS2,...]");
+        messages.push_back("usage: list/reload/tweak/self or add/init/remove PLAYERNAME or addclass CLASS[:SPEC] [male|female] or fillraid [CLASS1[:SPEC],...]");
         return messages;
     }
 
@@ -1114,11 +1205,30 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
                 "addclass: invalid CLASSNAME(warrior/paladin/hunter/rogue/priest/shaman/mage/warlock/druid/dk)");
             return messages;
         }
-        uint8 claz = ClassIdFromName(charname);
+        std::string className = charname;
+        std::string specName;
+        if (size_t colon = className.find(':'); colon != std::string::npos)
+        {
+            specName = className.substr(colon + 1);
+            className = className.substr(0, colon);
+        }
+
+        uint8 claz = ClassIdFromName(className);
         if (!claz)
         {
             messages.push_back("Error: Invalid Class. Try again.");
             return messages;
+        }
+
+        int specTab = -1;
+        if (!specName.empty())
+        {
+            specTab = SpecTabFromName(claz, specName);
+            if (specTab < 0)
+            {
+                messages.push_back("Error: Invalid Spec '" + specName + "'. Try again.");
+                return messages;
+            }
         }
         //  Added for gender choice : Parsing gender
         int8 gender = -1; // -1 = gender will be random
@@ -1157,6 +1267,10 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
             uint32 guildId = sCharacterCache->GetCharacterGuildIdByGuid(guid);
             if (guildId && PlayerbotGuildMgr::instance().IsRealGuild(guildId))
                 continue;
+            if (specTab >= 0)
+                PlayerbotFactory::SetDesiredSpecTab(guid, specTab);
+            else
+                PlayerbotFactory::ClearDesiredSpecTab(guid);
             AddPlayerBot(guid, master->GetSession()->GetAccountId());
             messages.push_back("Add class " + std::string(charname));
             return messages;
@@ -1179,13 +1293,16 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
             return messages;
         }
 
-        // Default 25-man composition (master + 24): 3 tank-capable, 7 healer-capable
-        // (shaman/paladin/druid-weighted, single priest), 14 dps. No deathknights so
-        // the comp also fits TBC raids.
+        // Default 25-man composition (master + 24), modeled on standard TBC/Sunwell
+        // raids: 2 tanks, 6 healers (resto-shaman-weighted), 16 dps with the usual
+        // synergy singletons (shadow priest, ele + enh shaman, fury, ret). Specs are
+        // pinned via CLASS:SPEC. No deathknights so the comp also fits TBC raids.
         static char const* const defaultComp =
-            "warrior,warrior,druid,paladin,paladin,shaman,shaman,shaman,druid,druid,"
-            "warlock,warlock,warlock,mage,mage,mage,hunter,hunter,hunter,rogue,rogue,"
-            "shaman,priest,warrior";
+            "warrior:prot,druid:bear,"
+            "shaman:resto,shaman:resto,paladin:holy,paladin:holy,priest:holy,druid:resto,"
+            "warlock:destro,warlock:destro,warlock:destro,warlock:destro,"
+            "hunter:bm,hunter:bm,hunter:bm,mage:fire,mage:fire,rogue:combat,rogue:combat,"
+            "priest:shadow,shaman:ele,shaman:enh,warrior:fury,paladin:ret";
 
         std::vector<std::string> comp = split(std::string(charname ? charname : defaultComp), ',');
 
@@ -1199,7 +1316,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
 
         uint8 teamId = master->GetTeamId(true);
         uint32 added = 0;
-        for (std::string const& className : comp)
+        for (std::string const& entry : comp)
         {
             if (added >= slots)
             {
@@ -1207,11 +1324,30 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
                 break;
             }
 
+            std::string className = entry;
+            std::string specName;
+            if (size_t colon = entry.find(':'); colon != std::string::npos)
+            {
+                className = entry.substr(0, colon);
+                specName = entry.substr(colon + 1);
+            }
+
             uint8 claz = ClassIdFromName(className);
             if (!claz)
             {
-                messages.push_back("fillraid: invalid class '" + className + "'");
+                messages.push_back("fillraid: invalid class '" + entry + "'");
                 continue;
+            }
+
+            int specTab = -1;
+            if (!specName.empty())
+            {
+                specTab = SpecTabFromName(claz, specName);
+                if (specTab < 0)
+                {
+                    messages.push_back("fillraid: unknown spec '" + entry + "'");
+                    continue;
+                }
             }
 
             if (claz == CLASS_DEATH_KNIGHT &&
@@ -1233,6 +1369,10 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
                 uint32 guildId = sCharacterCache->GetCharacterGuildIdByGuid(guid);
                 if (guildId && PlayerbotGuildMgr::instance().IsRealGuild(guildId))
                     continue;
+                if (specTab >= 0)
+                    PlayerbotFactory::SetDesiredSpecTab(guid, specTab);
+                else
+                    PlayerbotFactory::ClearDesiredSpecTab(guid);
                 AddPlayerBot(guid, master->GetSession()->GetAccountId());
                 ++added;
                 found = true;
@@ -1240,7 +1380,7 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
             }
 
             if (!found)
-                messages.push_back("fillraid: no available " + className);
+                messages.push_back("fillraid: no available " + entry);
         }
 
         messages.push_back("fillraid: summoning " + std::to_string(added) + " bots");

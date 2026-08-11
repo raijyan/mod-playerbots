@@ -64,6 +64,11 @@ public:
     static uint32 tradeSkills[];
     static float CalculateEnchantScore(uint32 enchant_id, Player* bot);
     uint32 InitTalentsTree(bool incremental = false, bool use_template = true, bool reset = false);
+    // Spec pinning (fillraid/addclass CLASS:SPEC): guid -> desired talent tab (3 = druid cat).
+    // Consulted by InitTalentsTree on every fresh (non-incremental) init, so later
+    // re-inits (init=..., refresh) keep the pinned spec instead of rerolling it.
+    static void SetDesiredSpecTab(ObjectGuid guid, uint8 tab) { desiredSpecTabs[guid] = tab; }
+    static void ClearDesiredSpecTab(ObjectGuid guid) { desiredSpecTabs.erase(guid); }
     static void InitTalentsBySpecNo(Player* bot, int specNo, bool reset);
     static void InitTalentsByParsedSpecLink(Player* bot, std::vector<std::vector<uint32>> parsedSpecLink, bool reset);
     void InitAvailableSpells();
@@ -157,6 +162,7 @@ private:
     // void InitEquipmentNew(bool incremental);
     bool CanEquipItem(ItemTemplate const* proto);
     bool CanEquipUnseenItem(uint8 slot, uint16& dest, uint32 item);
+    static std::unordered_map<ObjectGuid, uint8> desiredSpecTabs;
     static bool IsPrimaryTradeSkill(uint16 skillId);
     static bool IsGatheringTradeSkill(uint16 skillId);
     static bool IsCraftingTradeSkill(uint16 skillId);

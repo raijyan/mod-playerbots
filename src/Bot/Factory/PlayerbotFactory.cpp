@@ -53,6 +53,7 @@ uint32 PlayerbotFactory::tradeSkills[] = {SKILL_ALCHEMY,         SKILL_ENCHANTIN
                                           SKILL_FISHING,         SKILL_JEWELCRAFTING};
 
 std::list<uint32> PlayerbotFactory::classQuestIds;
+std::unordered_map<ObjectGuid, uint8> PlayerbotFactory::desiredSpecTabs;
 std::list<uint32> PlayerbotFactory::specialQuestIds;
 std::vector<uint32> PlayerbotFactory::enchantSpellIdCache;
 std::vector<uint32> PlayerbotFactory::enchantGemIdCache;
@@ -1514,6 +1515,11 @@ uint32 PlayerbotFactory::InitTalentsTree(bool increment /*false*/, bool use_temp
                 specTab = 3;
             }
         }
+    }
+    else if (auto desired = desiredSpecTabs.find(bot->GetGUID());
+             desired != desiredSpecTabs.end() && desired->second < MAX_SPECNO)
+    {
+        specTab = desired->second;
     }
     else
     {
