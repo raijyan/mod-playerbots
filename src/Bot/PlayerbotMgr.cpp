@@ -1179,12 +1179,13 @@ std::vector<std::string> PlayerbotHolder::HandlePlayerbotCommand(char const* arg
             return messages;
         }
 
-        // Default 25-man composition (master + 24): 3 tank-capable, 7 healer-capable,
-        // 14 dps. No deathknights so the comp also fits TBC raids.
+        // Default 25-man composition (master + 24): 3 tank-capable, 7 healer-capable
+        // (shaman/paladin/druid-weighted, single priest), 14 dps. No deathknights so
+        // the comp also fits TBC raids.
         static char const* const defaultComp =
-            "warrior,warrior,druid,paladin,paladin,priest,priest,priest,shaman,druid,"
-            "warlock,warlock,warlock,mage,mage,hunter,hunter,rogue,rogue,shaman,shaman,"
-            "priest,druid,warrior";
+            "warrior,warrior,druid,paladin,paladin,shaman,shaman,shaman,druid,druid,"
+            "warlock,warlock,warlock,mage,mage,mage,hunter,hunter,hunter,rogue,rogue,"
+            "shaman,priest,warrior";
 
         std::vector<std::string> comp = split(std::string(charname ? charname : defaultComp), ',');
 
