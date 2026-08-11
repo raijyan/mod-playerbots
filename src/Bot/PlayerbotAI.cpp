@@ -237,6 +237,10 @@ PlayerbotAI::~PlayerbotAI()
 
 void PlayerbotAI::UpdateAI(uint32 elapsed, bool minimal)
 {
+    // ARENABOTS: brain-owned bot — playerbots must neither think nor move it.
+    if (arenabotsSuspended)
+        return;
+
     // Handle the AI check delay
     if (nextAICheckDelay > elapsed)
         nextAICheckDelay -= elapsed;
@@ -1481,7 +1485,7 @@ void PlayerbotAI::DoNextAction(bool min)
     {
         // Death Count to prevent skeleton piles
         // Player* master = GetMaster();  // warning here - whipowill
-        if (!IsRealPlayer(master) && !bot->InBattleground())
+        if (!::IsRealPlayer(master) && !bot->InBattleground())
         {
             uint32 dCount = aiObjectContext->GetValue<uint32>("death count")->Get();
             aiObjectContext->GetValue<uint32>("death count")->Set(++dCount);
@@ -4459,7 +4463,7 @@ Player* PlayerbotAI::FindNewMaster()
 bool PlayerbotAI::IsAltBot() { return HasGameClientMaster() && !sRandomPlayerbotMgr.IsRandomBot(bot) && !IsSelfBot(bot); }
 
 // True when the bot's master is driven by a player with a game client: a regular player (no bot AI) or a selfbot player.
-bool PlayerbotAI::HasGameClientMaster() { return IsRealPlayer(master) || IsSelfBot(master); }
+bool PlayerbotAI::HasGameClientMaster() { return ::IsRealPlayer(master) || IsSelfBot(master); }
 
 Player* PlayerbotAI::GetGroupLeader()
 {

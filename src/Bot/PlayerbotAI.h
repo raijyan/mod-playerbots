@@ -391,6 +391,16 @@ public:
     void UpdateAI(uint32 elapsed, bool minimal = false) override;
     void UpdateAIInternal(uint32 elapsed, bool minimal = false) override;
 
+    // ARENABOTS: hard AI handoff — while suspended, UpdateAI early-returns so
+    // mod-arenabots' ArenaBrain is the bot's sole mover/decider for the match.
+    void SetArenabotsSuspended(bool suspended) { arenabotsSuspended = suspended; }
+    bool IsArenabotsSuspended() const { return arenabotsSuspended; }
+
+    // Compat shim: upstream-master member API expected by external modules;
+    // in-module code uses the free IsRealPlayer(Player*) (qualify with :: inside
+    // PlayerbotAI methods, where this member shadows it).
+    bool IsRealPlayer() { return master ? (master == bot) : false; }
+
     std::string const HandleRemoteCommand(std::string const command);
     void HandleCommand(uint32 type, std::string const text, Player* fromPlayer);
     void QueueChatResponse(const ChatQueuedReply reply);
@@ -647,6 +657,8 @@ protected:
     bool allowActive[MAX_ACTIVITY_TYPE];
     time_t allowActiveCheckTimer[MAX_ACTIVITY_TYPE];
     bool inCombat = false;
+    // ARENABOTS: see SetArenabotsSuspended
+    bool arenabotsSuspended = false;
     BotCheatMask cheatMask = BotCheatMask::none;
     Position jumpDestination = Position();
     uint32 nextTransportCheck = 0;
